@@ -1,0 +1,49 @@
+#!/bin/bash
+
+# Actualizar paquetes
+sudo apt update -y
+
+# Instalar NFS y PHP con las extensiones necesarias
+sudo apt install nfs-common -y
+sudo apt install php8.3 -y
+sudo apt install php libapache2-mod-php php-mysql php-curl php-gd php-xml php-mbstring php-xmlrpc php-zip php-soap php-intl -y
+
+# Crear el directorio para el montaje NFS
+sudo mkdir -p /nfs/compartido
+
+# Montar el recurso NFS remoto
+sudo mount 192.168.30.74:/var/nfs/wordpress /nfs/compartido
+
+# Añadir el montaje a /etc/fstab
+echo "192.168.30.74:/var/nfs/wordpress    /nfs/compartido   nfs auto,nofail,noatime,nolock,intr,tcp,actimeo=1800 0 0" | sudo tee -a /etc/fstab
+
+# Copiar el archivo de sitio por defecto de Apache a wordpress.conf
+sudo cp /etc/apache2/sites-available/000-default.conf /etc/apache2/sites-available/wordpress.conf
+
+# Crear el archivo wordpress.conf con la configuración adecuada
+sudo bash -c 'cat <<EOF > /etc/apache2/sites-available/wordpress.conf
+<VirtualHost *:80>
+        ServerAdmin webmaster@localhost
+        DocumentRoot /nfs/compartido/wordpress
+        ErrorLog \${APACHE_LOG_DIR}/error.log
+        CustomLog \${APACHE_LOG_DIR}/access.log combined
+
+        <Directory /nfs/compartido/wordpress>
+                Options FollowSymlinks
+                AllowOverride All
+                Require all granted
+        </Directory>
+
+        SetEnvIf X-Forwarded-Proto "https" HTTPS=on
+</VirtualHost>
+EOF'
+
+# Deshabilitar el sitio por defecto y habilitar el sitio de WordPress
+sudo a2dissite 000-default.conf
+sudo a2ensite wordpress.conf
+
+# Reiniciar Apache
+sudo systemctl restart apache2
+# Cambiar el hostname
+sudo hostnamectl set-hostname ServidorWEBJesusSanchez
+echo "Aprovisionamiento completado."

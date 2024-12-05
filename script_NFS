@@ -1,0 +1,87 @@
+#!/bin/bash
+# Actualizar paquetes
+sudo apt update -y
+
+# Instalar el servidor NFS
+sudo apt install nfs-kernel-server -y
+
+# Crear el directorio NFS para WordPress
+sudo mkdir -p /var/nfs/wordpress
+sudo chown nobody:nogroup /var/nfs/wordpress/
+
+# Añadir la línea de exportación en /etc/exports
+echo "/var/nfs/wordpress      192.168.30.64/26(rw,sync,no_root_squash,no_subtree_check)" | sudo tee -a /etc/exports
+
+# Aplicar la configuración de NFS
+sudo exportfs -a
+sudo systemctl restart nfs-kernel-server
+
+# Descargar la última versión nocturna de WordPress
+sudo wget https://wordpress.org/nightly-builds/wordpress-latest.zip -O /tmp/wordpress-latest.zip
+
+# Instalar unzip si no está instalado
+sudo apt install unzip -y
+
+# Descomprimir WordPress en el directorio NFS
+sudo unzip /tmp/wordpress-latest.zip -d /var/nfs/
+
+# Ajustar permisos en el directorio WordPress
+sudo chown nobody:nogroup /var/nfs/wordpress/*
+sudo chmod 755 /var/nfs/wordpress/*
+
+# Crear el archivo wp-config.php sin usar nano
+sudo bash -c 'cat <<EOF > /var/nfs/wordpress/wp-config.php
+<?php
+/** The database collate type. Don\'t change this if in doubt. */
+define( \'DB_COLLATE\', \'\' );
+
+/**#@+
+ * Authentication unique keys and salts.
+ */
+define( \'AUTH_KEY\',         \'`mx/7y3H:[1y/5ME6&2`u401_&FN4Q}@v7S>0RZCbg747zI57r8x5w|;q;qmj.B6\' );
+define( \'SECURE_AUTH_KEY\',  \'fxojfx^MNK=UI&p+^~0Z 3-BW,iW[3lT=KVYzUZw+bI#6<@}eR aO,)MvFP/*`Xb\' );
+define( \'LOGGED_IN_KEY\',    \'Q^2vnz]c\$_[U:{G0&.l(kr AO3TgZ7^I$2e4|rr{;>NIsc1RtQwG_%{$wufF^M@X\' );
+define( \'NONCE_KEY\',        \'2SCkinOuKDXv?LS3+UVY!+/@h^q<JB]MfU4rzew.F,y!?URY7M,lv1mL~Elb.p:Z\' );
+define( \'AUTH_SALT\',        \'vsI}qeae yS`Qj((Xg~|+f~C_jNuQ@V0v4uo(k6f.01BJ)ID3%#Qwd>i-Qe4?m/A\' );
+define( \'SECURE_AUTH_SALT\', \']00%Y8:nM21ysf9[X7=2]5=;3YZb=M@-=w!#}m{zZQQ/=`Qq/r`J|-oQC,4WAH+p\' );
+define( \'LOGGED_IN_SALT\',   \'Ef#3_zxHX0nn+shplY0g8; ?_=WQKWbj4phLoOhr-<Sya_u]Ej/n?j!XtVea_nL9\' );
+define( \'NONCE_SALT\',       \'q<;}eMyL099#T(2o}=[Jn[vGEkiOnn}voJ;7kqZN/&g>xO3U<<0=sqUd76^Vjs7l\' );
+
+/**#@-*/
+
+/**
+ * WordPress database table prefix.
+ */
+$table_prefix = \'wp_\';
+
+/**
+ * Para desarrolladores: modo de depuración de WordPress.
+ */
+define( \'WP_DEBUG\', false );
+define( \'WP_HOME\', \'https://wordpressjesusasir.ddns.net/\' );
+define( \'WP_SITEURL\', \'https://wordpressjesusasir.ddns.net/\' );
+
+/* Añadir valores personalizados aquí */
+
+/* ¡Eso es todo! Deja de editar. ¡Feliz blogging! */
+
+/** Ruta absoluta al directorio de WordPress. */
+if ( ! defined( \'ABSPATH\' ) ) {
+    define( \'ABSPATH\', __DIR__ . \'/\' );
+}
+
+/** Configura las variables de WordPress e incluye los ficheros. */
+require_once ABSPATH . \'wp-settings.php\';
+
+if (isset(\$_SERVER[\'HTTP_X_FORWARDED_PROTO\']) && \$_SERVER[\'HTTP_X_FORWARDED_PROTO\'] === \'https\') {
+    \$_SERVER[\'HTTPS\'] = \'on\';
+}
+
+if (isset(\$_SERVER[\'HTTP_X_FORWARDED_HOST\'])) {
+    \$_SERVER[\'HTTP_HOST\'] = \$_SERVER[\'HTTP_X_FORWARDED_HOST\'];
+}
+EOF'
+
+# Cambiar el hostname
+sudo hostnamectl set-hostname NFSJesusSanchez
+echo "Aprovisionamiento completado."

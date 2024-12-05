@@ -1,0 +1,95 @@
+#!/bin/bash
+
+# Actualizar paquetes
+sudo apt update
+
+# Instalar Apache
+sudo apt install apache2 -y
+
+# Habilitar módulos de Apache necesarios para el balanceo
+sudo a2enmod proxy proxy_http proxy_balancer lbmethod_byrequests
+
+# Reiniciar Apache para cargar los módulos
+sudo systemctl restart apache2
+
+# Crear el archivo de configuración del balanceador (HTTP)
+# Partimos del 000-default.conf para mantener algunas directivas, luego lo sobreescribimos
+sudo cp /etc/apache2/sites-available/000-default.conf /etc/apache2/sites-available/load-balancer.conf
+
+# Sobrescribimos el contenido de load-balancer.conf
+sudo bash -c 'cat <<EOF > /etc/apache2/sites-available/load-balancer.conf
+<VirtualHost *:80>
+    ServerName wordpressjesusasir.ddns.net
+    <Proxy "balancer://mycluster">
+        BalancerMember "http://192.168.30.70"
+        BalancerMember "http://192.168.30.73"
+    </Proxy>
+
+    ProxyPass "/" "balancer://mycluster/"
+    ProxyPassReverse "/" "balancer://mycluster/"
+</VirtualHost>
+EOF'
+
+# Habilitar el nuevo sitio y deshabilitar el default
+sudo a2ensite load-balancer.conf
+sudo a2dissite 000-default.conf
+sudo systemctl restart apache2
+
+# Habilitar módulos SSL, rewrite y headers
+sudo a2enmod ssl
+sudo a2enmod rewrite
+sudo a2enmod headers
+sudo systemctl restart apache2
+
+# Instalar Certbot
+sudo apt install certbot python3-certbot-apache -y
+
+# Generar certificado (interactivo, ajustar si se quiere automático)
+sudo certbot --apache -d wordpressjesusasir.ddns.net
+
+# Crear archivo de configuración SSL (HTTPS)
+sudo bash -c 'cat <<EOF > /etc/apache2/sites-available/load-balancer-le-ssl.conf
+<VirtualHost *:80>
+    ServerName wordpressjesusasir.ddns.net
+    ErrorLog /var/log/apache2/error.log
+    CustomLog /var/log/apache2/access.log combined
+    RewriteEngine On
+    RewriteCond %{HTTPS} off
+    RewriteRule ^ https://%{HTTP_HOST}%{REQUEST_URI} [L,R=301]
+</VirtualHost>
+
+<IfModule mod_ssl.c>
+<VirtualHost *:443>
+    ServerName wordpressjesusasir.ddns.net
+    SSLEngine on
+    SSLCertificateFile /etc/letsencrypt/live/wordpressjesusasir.ddns.net/fullchain.pem
+    SSLCertificateKeyFile /etc/letsencrypt/live/wordpressjesusasir.ddns.net/privkey.pem
+    Include /etc/letsencrypt/options-ssl-apache.conf
+
+    <Proxy "balancer://mycluster">
+        BalancerMember "http://192.168.30.70"
+        BalancerMember "http://192.168.30.73"
+    </Proxy>
+
+    ProxyPass "/" "balancer://mycluster/"
+    ProxyPassReverse "/" "balancer://mycluster/"
+    ProxyPreserveHost On
+
+    RequestHeader set X-Forwarded-Proto "https" env=HTTPS
+    RequestHeader set X-Forwarded-Host "wordpressjesusasir.ddns.net"
+
+    ErrorLog /var/log/apache2/error.log
+    CustomLog /var/log/apache2/access.log combined
+</VirtualHost>
+</IfModule>
+EOF'
+
+# Deshabilitar el sitio HTTP sin SSL y activar el sitio con SSL
+sudo a2dissite load-balancer.conf
+sudo a2ensite load-balancer-le-ssl.conf
+sudo systemctl reload apache2
+
+# Cambiar el hostname
+sudo hostnamectl set-hostname BalanceadorJesusSanchez
+
+echo "Aprovisionamiento completado."
