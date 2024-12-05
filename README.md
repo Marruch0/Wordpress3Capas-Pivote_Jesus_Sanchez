@@ -59,8 +59,9 @@ Esta actividad consiste en **desplegar un CMS Wordpress en AWS**, configurándol
 # Estructura AWS
 
 Lo primero que tenemos que hacer es crear la infraestructura en AWS.
-![arquitectura drawio](https://github.com/user-attachments/assets/affa1574-0b4d-42bf-8493-e4ceb4b8bf72)
-
+<div align="center">
+  <img src="https://github.com/user-attachments/assets/affa1574-0b4d-42bf-8493-e4ceb4b8bf72" alt="arquitectura drawio" />
+</div>
 Una vez sabemos que estructura vamos a seguir pasaremos a crearla en vagrant.
 
 —Es importante que al crear todo lo necesario se le de un nombre descriptivo—
